@@ -1,0 +1,64 @@
+!!! 5
+%html{ :lang => "en" }
+  %head
+    %meta{:charset =>"utf-8"}
+    %title #{ values[:title] }#{ ' - ' + @options.title if @options.title }
+    %meta{:name =>'viewport', :content => 'width=device-width, initial-scale=1, maximum-scale=1'}
+
+    %link{ :rel => "stylesheet", :href => "#{values[:relpath]}/css/bootstrap.min.css", :type => "text/css", :media => "screen" }
+    %link{ :rel => "stylesheet", :href => "#{values[:relpath]}/css/application.css", :type => "text/css", :media => "screen" }
+    %link{ :rel => "stylesheet", :href => "#{values[:relpath]}/css/coderay.css", :type => "text/css", :media => "screen" }
+    %script{ :type => 'text/javascript', :src => "#{values[:relpath]}/js/jquery.js" }
+    %script{ :type => 'text/javascript', :src => "#{values[:relpath]}/js/bootstrap.min.js" }
+    %script{ :type => 'text/javascript', :src => "#{values[:relpath]}/js/index.js" }
+    %script{ :type => 'text/javascript', :src => "#{values[:relpath]}/js/application.js" }
+
+  %body#navigator
+
+
+    .container-fluid
+      .row-fluid
+        .span12
+          %ul.nav.navlist
+            %li.nav-header
+              %a
+                Classes
+            - frompath = Pathname.new(@basepath).dirname
+            - @classes.select { |x| x.full_name !~ /::/ }.sort.each do |c|
+
+              - if c.document_self
+                %li
+                  %a{:href=>Pathname.new(classfile(c)).relative_path_from(frompath), :target => 'main'}
+                    = c.name
+
+              - @classes.select { |x| x.full_name[/^#{c.full_name}::/] }.sort.each do |cc|
+                - if cc.document_self
+                  %li
+                    %a{:href=>Pathname.new(classfile(cc)).relative_path_from(frompath), :target => 'main'}
+                      %span.parent
+                        =c.full_name
+                      = cc.name
+
+                  - @classes.select { |x| x.full_name[/^#{cc.full_name}::/] }.sort.each do |ccc|
+                    - if ccc.document_self
+                      %li
+                        %a{:href=>Pathname.new(classfile(ccc)).relative_path_from(frompath), :target => 'main'}
+                          %span.parent
+                            =cc.full_name
+                          = ccc.name
+
+                        - @classes.select { |x| x.full_name[/^#{ccc.full_name}::/] }.sort.each do |cccc|
+                          - if cccc.document_self
+                            %li
+                              %a{:href=>Pathname.new(classfile(cccc)).relative_path_from(frompath), :target => 'main'}
+                                %span.parent
+                                  =ccc.full_name
+                                = cccc.name
+
+                          - @classes.select { |x| x.full_name[/^#{cccc.full_name}::/] }.sort.each do |ccccc|
+                            - if ccccc.document_self
+                              %li
+                                %a{:href=>Pathname.new(classfile(ccccc)).relative_path_from(frompath), :target => 'main'}
+                                  %span.parent
+                                    =cccc.full_name
+                                  = ccccc.name
