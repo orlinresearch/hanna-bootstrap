@@ -4,27 +4,51 @@
 - description = entry.description
 - title_in_description = description && (description =~ /<h(1|2[^>]*?)>/i)
 - description.gsub!(%r{<h(1|2)[^>]*?>(?<tag>.*?)</h(1|2)>}){|m| %Q[<div class="page-header">#{m}</div>] }
-- title = capture_haml do
-  - if file_page
-    = values[:title]
-  - else
-    %span.type= values[:classmod]
-    = values[:entry].full_name
 
 .row
   .span9
     - if title_in_description
-      .name= title
+      .name= values[:title]
     - else
       .page-header
         %h1.name
-          = title
-    %section#content
+          = values[:title]
+    %section
       #text
         - if values[:description]
           #description~ sanitize_code_blocks values[:description]
-        = content = yield
-        -# empty = content.gsub(/[\s\n]/, '').gsub(%r{</?[^>]+?>}, '').empty? && values[:description].empty?
+        - sections = values[:sections].keys if values.has_key?(:sections)
+
+        - if entry.requires or sections or entry.includes
+          #context
+            - unless entry.requires.empty?
+              - no_content = false
+              %section#requires
+                %h2 Required files
+                %ol
+                  - entry.requires.each do |req|
+                    %li= req.name
+
+            - if sections && (sections.length > 1 || sections.first.title.to_s != '')
+              - no_content = false
+              %section#contents
+                %h2 Contents
+                %ol
+                  - sections.sort_by{|s| s.title.to_s}.each do |section|
+                    %li= link_to section.title, "##{section.aref}"
+
+            - unless entry.includes.empty?
+              - no_content = false
+              %section#includes
+                %h2 Included modules
+                %ol
+                  - entry.includes.each do |inc|
+                    - if (mod = inc.module).is_a?(String)
+                      %li= inc.name
+                    - else
+                      %li= link_to inc.name, entry.aref_to(mod.path)
+
+
 
   .span3
     %ul.nav.nav-list

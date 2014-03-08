@@ -1,0 +1,195 @@
+- entry = values[:entry]
+- file_page = !values[:classmod]
+- methods = entry.method_list + entry.attributes
+- description = entry.description
+- title_in_description = description && (description =~ /<h(1|2[^>]*?)>/i)
+- description.gsub!(%r{<h(1|2)[^>]*?>(?<tag>.*?)</h(1|2)>}){|m| %Q[<div class="page-header">#{m}</div>] }
+- title = capture_haml do
+  - if file_page
+    = values[:title]
+  - else
+    %span.type= values[:classmod]
+    = values[:entry].full_name
+
+.row
+  .span9
+    - if title_in_description
+      .name
+        %span.type= values[:classmod]
+        = values[:entry].full_name
+    - else
+      .page-header
+        %h1.name
+          %span.type= values[:classmod]
+          = values[:entry].full_name
+    %section#content
+      #text
+        - if values[:description]
+          #description~ sanitize_code_blocks values[:description]
+
+        #context
+          - unless entry.requires.empty?
+            %section#requires
+              %h2 Required files
+              %ol
+                - entry.requires.each do |req|
+                  %li= req.name
+
+          - if values[:sections].keys.size > 1
+            %section#contents
+              %h2 Contents
+              %ol
+                - values[:sections].keys.each do |section|
+                  %li= link_to section.title, "##{section.aref}"
+
+          - unless values[:entry].includes.empty?
+            %section#includes
+              %h2 Included modules
+              %ol
+                - entry.includes.each do |inc|
+                  - if (mod = inc.module).is_a?(String)
+                    %li= inc.name
+                  - else
+                    %li= link_to inc.name, entry.aref_to(mod.path)
+
+        - unless values[:entry].classes_and_modules.empty?
+          #class-list
+            %h2 Classes and Modules
+            %ul
+              - values[:entry].modules.each do |mod|
+                %li
+                  %span.type MODULE
+                  = link_to mod.full_name, values[:entry].aref_to(mod.path)
+              - values[:entry].classes.each do |mod|
+                %li
+                  %span.type CLASS
+                  = link_to mod.full_name, values[:entry].aref_to(mod.path)
+
+        - values[:sections].each do |section, h|
+          - constants, attributes, alias_types, method_types = h.values_at(:constants, :attributes, :alias_types, :method_types)
+          #section
+            - if section.title.to_s != ''
+              %h2
+                %a{ :name =>section.aref }= section.title
+                - if section.comment
+                  .section-comment= section.description
+
+            - unless constants.empty?
+              #constants-list
+                %h2 Constants
+                .name-list
+                  %table.table-striped.table{ :summary => "Constants" }
+                    - constants.each do |const|
+                      %tr.top-aligned-row.context-row
+                        %th.context-item-name= const.name
+                        %td =
+                        %td.context-item-value= const.value
+                        - if const.description then
+                          %td &nbsp;
+                          %td.context-item-desc= const.description
+
+            - unless alias_types.empty?
+              - alias_types.each do |type, aliases|
+                #aliases-list
+                  %h2 #{type} Aliases
+                  .name-list
+                    %table{ :summary => "#{type} Aliases" }
+                      - aliases.each do |alia|
+                        %tr.top-aligned-row.context-row
+                          %td.context-item-name= alia.name
+                          %td -&gt;
+                          %td.context-item-value= link_to alia.is_alias_for.name, "##{alia.is_alias_for.aref}"
+                          - unless alia.description.empty?
+                            %td.context-item-desc= alia.description
+
+            - unless attributes.empty?
+              #attribute-list
+                %h2.section-bar Attributes
+                .name-list
+                  %table
+                    - attributes.each do |attrib|
+                      %tr.top-aligned-row.context-row
+                        %td.context-item-name
+                          %a{:name => attrib.aref}=attrib.name
+                        %td.context-item-value= attrib.rw ? "[#{attrib.rw}]" : '&nbsp;'
+                        %td.context-item-desc~ sanitize_code_blocks(attrib.description)
+
+            - unless method_types.empty?
+              #methods
+                - method_types.each do |type, list|
+                  - unless list.empty?
+                    %article{ id: "#{type.downcase}-methods" }
+                      %h2== #{type} methods
+
+                      - list.each do |method|
+                        %a{ :name => method.aref }
+                        %section.method{ :id => "method-#{method.aref}", :class => "#{type.gsub(/\s+/, '-')}".downcase }
+                          %h3.synopsis
+                            - if method.call_seq
+                              %span.name
+                                - method.call_seq.split(/\r?\n/).each do |seq|
+                                  %div=seq
+                            - else
+                              %span.name= method.name
+                              %span.arguments= method.params
+                          - if method.description
+                            .description
+                              ~ sanitize_code_blocks method.description
+                          - if method.markup_code
+                            .source
+                              - name = "#{method.aref}-source"
+                              %a.btn.btn-mini.source-toggle.collapsed{ href: "##{name}", data: { toggle: 'collapse' } }
+                                %span.show
+                                  %span.icon-resize-full
+                                  Show
+                                %span.hide
+                                  %span.icon-resize-small
+                                  Hide
+                                Source
+                              %div.collapse{ id: name }
+                                = highlighted_code_block method
+
+  .span3
+    %ul.nav.nav-list
+
+      - if file_page
+        %li.nav-header Path
+        %li= values[:file].relative_name
+
+      - else
+        %li.nav-header Defined IN
+        - values[:entry].in_files.each_with_index do |file, index|
+          %li
+            = link_to file.full_name, Pathname.new(file.path).relative_path_from(Pathname.new(values[:entry].path).dirname)
+
+      - if values[:entry].parent
+        %li.nav-header Parent
+        %li
+          %strong
+            = link_to values[:entry].parent.name, Pathname.new(class_dir) + Pathname.new(values[:entry].parent.path).relative_path_from(Pathname.new values[:entry].path)
+
+      - unless methods.empty?
+        %li.divider
+        - %w[attr attr_accessor attr_reader attr_writer class instance].each do |type|
+          - (RDoc::VISIBILITIES rescue RDoc::Context::VISIBILITIES).each do |vis|
+            - list = methods.select { |x| x.visibility == vis && x.type == type.to_s }
+            - unless list.empty?
+              - type_result = ""
+              - if type =~ /^attr_/
+                - type_result += type.sub(/^attr_/, '').capitalize
+              - else
+                - type_result += type.capitalize
+              - type_result = "#{vis.to_s.capitalize} #{type_result}"
+              %li.nav-header= type_result
+              - list.each do |method|
+                - if method.respond_to?(:aref)
+                  - if method.name.to_s.empty? && method.call_seq
+                    %li= link_to method.call_seq.gsub(/<br\s*\/?>/, "").split(/[\r\n]+/).map{ |s| s.split(/([({]+|\[\{|\s+(#?=>|&rarr;)\s+)/).first.sub(/^[A-Za-z0-9_:]+\./, "").sub(/\s+=\s+.*/, "=").strip }.uniq.join("<br />\n"), '#' + method.aref
+                  - else
+                    %li= link_to method.name, '#' + method.aref
+                - elsif method.respond_to?(:html_name)
+                  %li= link_to method.name, "#method-#{method.html_name}"
+                - else
+                  %li= method.name
+
+

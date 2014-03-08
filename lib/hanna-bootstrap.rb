@@ -23,94 +23,97 @@ require 'sass'
 
 class RDoc::Generator::Bootstrap
 
-  LAYOUT           = 'layout.haml'
+  LAYOUT = 'layout.haml'
 
-  CLASS_PAGE       = 'page.haml'
+  CLASS_PAGE = 'class_page.html.haml'
   METHOD_LIST_PAGE = 'method_list.haml'
-  FILE_PAGE        = CLASS_PAGE
-  SECTIONS_PAGE    = 'sections.haml'
+  FILE_PAGE = 'page.haml'
+  SECTIONS_PAGE = 'sections.haml'
 
-  FILE_INDEX       = 'file_index.haml'
-  CLASS_INDEX      = 'class_index.haml'
-  METHOD_INDEX     = 'method_index.haml'
+  FILE_INDEX = 'file_index.haml'
+  CLASS_INDEX = 'class_index.haml'
+  METHOD_INDEX = 'method_index.haml'
 
-  CLASS_DIR        = 'classes'
-  FILE_DIR         = 'files'
+  CLASS_DIR = 'classes'
+  FILE_DIR = 'files'
 
-  INDEX_OUT        = 'index.html'
-  FILE_INDEX_OUT   = File.join 'files',   'index.html'
-  CLASS_INDEX_OUT  = File.join 'classes', 'index.html'
-  METHOD_INDEX_OUT = File.join 'method',  'index.html'
+  INDEX_OUT = 'index.html'
+  FILE_INDEX_OUT = File.join 'files', 'index.html'
+  CLASS_INDEX_OUT = File.join 'classes', 'index.html'
+  METHOD_INDEX_OUT = File.join 'method', 'index.html'
 
   DESCRIPTION = 'Twitter Bootstrap theme for RDoc'
 
   # EPIC CUT AND PASTE TIEM NAO -- GG
-  RDoc::RDoc.add_generator( self )
+  RDoc::RDoc.add_generator(self)
 
-  def self::for( options )
-    new( options )
+  def self::for(options)
+    new(options)
   end
 
-  def initialize( store, options )
-    @options     = options
-    @store       = store
+  def initialize(options)
+    @options = options
     @templatedir = Pathname.new(options.template_dir || File.expand_path('../hanna-bootstrap/template_files', __FILE__))
 
-    @files      = nil
-    @classes    = nil
-    @methods    = nil
+    @files = nil
+    @classes = nil
+    @methods = nil
     @attributes = nil
 
     @basedir = Pathname.pwd.expand_path
+    @basepath = Pathname.new('.')
   end
 
-  def default_values( path )
+  def default_values(path)
     {
-      stylesheets: %w{
-        bootstrap.min
-        application
-        coderay
-      }.map {|f|outpath(File.join('css', "#{f}.css"), path)},
-      javascripts: %w{
-        jquery
-        bootstrap.min
-        index
-        application
-      }.map {|f|outpath(File.join('js', "#{f}.js"), path)},
-      mainpage:   outpath('', path),
-      files:      @files,
-      classes:    @classes,
-      methods:    @methods,
-      attributes: @attributes,
-      options:    @options,
-      path:       path
+        files: @files,
+        classes: @classes,
+        methods: @methods,
+        attributes: @attributes,
+        options: @options,
+        path: path,
+        relpath: Pathname.new(@basepath).relative_path_from(path.dirname),
+        basepath: @basepath.to_s,
+        basedir: @basedir
     }
 
   end
 
-  def generate
-    @outputdir = Pathname.new( @options.op_dir ).expand_path( @basedir )
+  def generate top_levels
+    ttt = Time.now
+    @outputdir = Pathname.new(@options.op_dir).expand_path(@basedir)
 
-    @files      = @store.all_files.sort
-    @classes    = @store.all_classes_and_modules.sort
-    @methods    = @classes.map {|m| m.method_list }.flatten.sort
-    @attributes = @classes.map(&:attributes).flatten.sort
+    @files = top_levels
+    @classes = RDoc::TopLevel.all_classes_and_modules
+    @methods = @classes.map { |m| m.method_list }.flatten
+    @attributes = @classes.map(&:attributes).flatten
 
-    # Now actually write the output
+    puts "#{Time.now-ttt} write static files"
     write_static_files
 
+    puts "#{Time.now-ttt} write the structure files"
+    FileUtils.mkdir_p(@basepath)
+    File.open(@basepath.join('nav.html'), 'w') do |f|
+      f << haml_file(templjoin('navigator.html.haml')).to_html(binding, :values => default_values(@basepath))
+    end
+    File.open(@basepath.join('index.html'), 'w') do |f|
+      f << haml_file(templjoin('frameset.html.haml')).to_html(binding, :values => default_values(@basepath))
+    end
+
+    puts "#{Time.now-ttt} generate class files"
     generate_class_files
+    puts "#{Time.now-ttt} generate file files"
     generate_file_files
-    generate_indexes
+    puts "#{Time.now-ttt} finished"
 
   rescue StandardError => err
-    p [ err.class.name, err.message, err.backtrace.join("\n  ") ]
+    p [err.class.name, err.message, err.backtrace.join("\n  ")]
     raise
   end
 
   def write_static_files
     css_dir = outjoin('css')
-    js_dir  = outjoin('js')
+    js_dir = outjoin('js')
     img_dir = outjoin('img')
 
     [css_dir, js_dir, img_dir].each { |dir|
@@ -132,36 +135,31 @@ class RDoc::Generator::Bootstrap
     FileUtils.cp %w{
       bootstrap.min.js
       jquery.js
-    }.map{|f| templjoin f }, js_dir
+    }.map { |f| templjoin f }, js_dir
 
     FileUtils.cp %w{
       glyphicons-halflings-white.png
       glyphicons-halflings.png
-    }.map{|f| templjoin f }, img_dir
+    }.map { |f| templjoin f }, img_dir
 
     FileUtils.cp %w{
       bootstrap.min.css
       coderay.css
-    }.map{|f| templjoin f }, css_dir
+    }.map { |f| templjoin f }, css_dir
 
   end
 
   def generate_indexes
-    generate_index(FILE_INDEX_OUT,   FILE_INDEX,   'File')
-    generate_index(CLASS_INDEX_OUT,  CLASS_INDEX,  'Class')
+    generate_index(FILE_INDEX_OUT, FILE_INDEX, 'File')
+    generate_index(CLASS_INDEX_OUT, CLASS_INDEX, 'Class')
     generate_index(METHOD_INDEX_OUT, METHOD_INDEX, 'Method')
   end
 
   def generate_index(outfile, templfile, index_name)
     path = Pathname.new(outfile)
-    dir = path.dirname
-    unless File.directory? dir
-      FileUtils.mkdir_p dir
-    end
+    FileUtils.mkdir_p path.dirname
 
-    values = default_values(path).merge({
-      :list_title => "#{index_name} Index"
-    })
+    values = default_values(path).merge(:list_title => "#{index_name} Index")
 
     index = haml_file(templjoin(templfile))
 
@@ -173,11 +171,9 @@ class RDoc::Generator::Bootstrap
   end
 
   def generate_file_files
-
-    # FIXME non-Ruby files
     @files.each do |file|
       generate_file_file(file)
-      generate_file_file(file, 'index.html') if @options.main_page == file.name
+      generate_file_file(file, 'main.html') if @options.main_page == file.name
     end
   end
 
@@ -185,38 +181,42 @@ class RDoc::Generator::Bootstrap
     file_page = haml_file(templjoin(FILE_PAGE))
     method_list_page = haml_file(templjoin(METHOD_LIST_PAGE))
 
+    return unless %w(.rdoc .md).include? Pathname.new(file.name).extname
+
+    if file.name == @options.main_page then
+      title = @options.title
+      mainpage = @basepath
+    else
+      title = file.base_name
+      mainpage = nil
+    end
+
     path = Pathname.new(path || file.path)
-    values = default_values(path).merge({
-      :file => file,
-      :entry => file,
-      :classmod => nil,
-      :title => file.base_name,
-      :list_title => nil,
-      :description => file.description
-    })
+    values = default_values(path).merge(
+        :mainpage => mainpage,
+        :file => file,
+        :entry => file,
+        :classmod => nil,
+        :title => title,
+        :list_title => nil,
+        :description => file.description
+    )
 
     result = with_layout(values) do
-      file_page.to_html(binding, :values => values) do
-        method_list_page.to_html(binding, values)
-      end
+      file_page.to_html(binding, :values => values)
     end
 
-    # FIXME XXX sanity check
-    dir = path.dirname
-    unless File.directory? dir
-      FileUtils.mkdir_p dir
-    end
-
+    FileUtils.mkdir_p path.dirname
     File.open(outjoin(path.to_path), 'w') { |f| f << result }
-
   end
 
   def generate_class_files
-    class_page       = haml_file(templjoin(CLASS_PAGE))
+    class_page = haml_file(templjoin(CLASS_PAGE))
     method_list_page = haml_file(templjoin(METHOD_LIST_PAGE))
-    sections_page    = haml_file(templjoin(SECTIONS_PAGE))
-    # FIXME refactor
+    sections_page = haml_file(templjoin(SECTIONS_PAGE))
 
+    puts "#{@classes.size} classes"
+    idx = 0
     @classes.each do |klass|
       outfile = classfile(klass)
       sections = {}
@@ -225,39 +225,33 @@ class RDoc::Generator::Bootstrap
         alias_types = []
         klass.methods_by_type(section).each do |type, visibilities|
           visibilities.each do |visibility, methods|
-            aliases, methods = methods.partition{|x| x.is_alias_for}
+            aliases, methods = methods.partition { |x| x.is_alias_for }
             method_types << ["#{visibility.to_s.capitalize} #{type.to_s.capitalize}", methods.sort] unless methods.empty?
             alias_types << ["#{visibility.to_s.capitalize} #{type.to_s.capitalize}", aliases.sort] unless aliases.empty?
           end
         end
-        sections[section] = {:constants=>constants, :attributes=>attributes, :method_types=>method_types, :alias_types=>alias_types}
+        sections[section] = {:constants => constants, :attributes => attributes, :method_types => method_types, :alias_types => alias_types}
       end
 
       path = Pathname.new(klass.path)
 
-      values = default_values(path).merge({
-        :file => klass.path,
-        :entry => klass,
-        :classmod => klass.type,
-        :title => klass.full_name,
-        :list_title => nil,
-        :description => klass.description,
-        :sections => sections
-      })
+      values = default_values(path).merge(
+          :file => klass.path,
+          :entry => klass,
+          :classmod => klass.type,
+          :title => klass.full_name,
+          :list_title => nil,
+          :description => klass.description,
+          :sections => sections
+      )
+
 
       result = with_layout(values) do
         h = {:values => values}
-        class_page.to_html(binding, h) do
-          method_list_page.to_html(binding, h) + sections_page.to_html(binding, h)
-        end
+        class_page.to_html(binding, h)
       end
 
-      # FIXME XXX sanity check
-      dir = outfile.dirname
-      unless File.directory? dir
-        FileUtils.mkdir_p dir
-      end
-
+      FileUtils.mkdir_p outfile.dirname
       File.open(outfile, 'w') { |f| f << result }
     end
   end
@@ -268,12 +262,13 @@ class RDoc::Generator::Bootstrap
   end
 
   def sanitize_code_blocks(text)
+    return text
     text.gsub(/<pre>(.+?)<\/pre>/m) do
       code = $1.sub(/^\s*\n/, '')
-      indent = code.gsub(/\n[ \t]*\n/, "\n").scan(/^ */).map{ |i| i.size }.min
+      indent = code.gsub(/\n[ \t]*\n/, "\n").scan(/^ */).map { |i| i.size }.min
       code.gsub!(/^#{' ' * indent}/, '') if indent > 0
 
-        "<pre>#{code}</pre>"
+      "<pre>#{code}</pre>"
     end
   end
 
@@ -289,32 +284,6 @@ class RDoc::Generator::Bootstrap
     CGI::escapeHTML(html)
   end
 
-  # XXX may my sins be not visited upon my sons.
-  def render_class_tree(entries, from_path, parent=nil)
-    namespaces = { }
-
-    entries.sort.inject('') do |out, klass|
-      unless namespaces[klass.full_name]
-        if parent
-          text = '<span class="parent">%s::</span>%s' % [parent.full_name, klass.name]
-        else
-          text = klass.name
-        end
-
-        if klass.document_self
-          link = Pathname.new(classfile(klass)).relative_path_from(from_path.dirname)
-          out << "<li>#{ link_to(text, link) }</li>"
-        end
-
-        subentries = @classes.select { |x| x.full_name[/^#{klass.full_name}::/] }
-        subentries.each { |x| namespaces[x.full_name] = true }
-        out << render_class_tree(subentries, from_path, klass)
-
-      end
-
-      out
-    end
-  end
 
   def build_javascript_search_index(entries)
     'var searchIndex = ' + (entries.map { |entry|
@@ -322,20 +291,20 @@ class RDoc::Generator::Bootstrap
       module_name = entry.parent_name
       link = [classfile(entry.parent), (entry.aref rescue "method-#{entry.html_name}")].join('#')
       {
-        'method' => method_name,
-        'module' => module_name,
-        'link'   => link
+          'method' => method_name,
+          'module' => module_name,
+          'link' => link
       }
     }.to_json)
   end
 
-  def link_to(text, url = nil, classname = nil, base = nil)
+  def link_to(text, url = nil, classname = nil, base = nil, target=nil)
     class_attr = classname ? ' class="%s"' % classname : ''
 
     if url
-        %[<a href="#{base}#{url}"#{class_attr}>#{text}</a>]
+      %Q[<a href="#{base}#{url}"#{class_attr}#{target.nil? ? '' : "target=#{target}"  }>#{text}</a>]
     elsif classname
-        %[<span#{class_attr}>#{text}</span>]
+      %Q[<span#{class_attr}>#{text}</span>]
     else
       text
     end
@@ -349,11 +318,10 @@ class RDoc::Generator::Bootstrap
   end
 
   def classfile(klass)
-    # FIXME sloooooooow
     Pathname.new(File.join(CLASS_DIR, klass.full_name.split('::')) + '.html')
   end
 
-  def outpath( path, from_path )
+  def outpath(path, from_path)
     Pathname.new(path).relative_path_from(from_path.dirname)
   end
 
@@ -394,9 +362,9 @@ class RDoc::Generator::Bootstrap
     src.gsub!(/^#{' ' * indent}/, '') if indent > 0
 
     CodeRay.highlight(src, lang,
-      :line_numbers        => line_numbers ? :table : nil,
-      :line_number_anchors => "#{method.aref}-source-",
-      :line_number_start   => start
-      )
+                      :line_numbers => line_numbers ? :table : nil,
+                      :line_number_anchors => "#{method.aref}-source-",
+                      :line_number_start => start
+    )
   end
 end
