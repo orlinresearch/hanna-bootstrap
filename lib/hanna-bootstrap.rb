@@ -187,7 +187,7 @@ class RDoc::Generator::Bootstrap
       title = @options.title
       mainpage = @basepath
     else
-      title = file.base_name
+      title = file.name.gsub('.rdoc', '').gsub('_', ' ')
       mainpage = nil
     end
 
@@ -199,7 +199,7 @@ class RDoc::Generator::Bootstrap
         :classmod => nil,
         :title => title,
         :list_title => nil,
-        :description => file.description
+        :description => fix_description(file.description)
     )
 
     result = with_layout(values) do
@@ -208,6 +208,11 @@ class RDoc::Generator::Bootstrap
 
     FileUtils.mkdir_p path.dirname
     File.open(outjoin(path.to_path), 'w') { |f| f << result }
+  end
+
+  def fix_description(description)
+    description.gsub(":odoc-link:", @options.op_dir)
+    #description.gsub!(%r{<h(1|2)[^>]*?>(?<tag>.*?)</h(1|2)>}) { |m| %Q[<div class="page-header">#{m}</div>] }
   end
 
   def generate_class_files
@@ -241,7 +246,7 @@ class RDoc::Generator::Bootstrap
           :classmod => klass.type,
           :title => klass.full_name,
           :list_title => nil,
-          :description => klass.description,
+          :description => fix_description(klass.description),
           :sections => sections
       )
 

@@ -3,20 +3,16 @@
 - methods = entry.method_list + entry.attributes
 - description = entry.description
 - title_in_description = description && (description =~ /<h(1|2[^>]*?)>/i)
-- description.gsub!(%r{<h(1|2)[^>]*?>(?<tag>.*?)</h(1|2)>}){|m| %Q[<div class="page-header">#{m}</div>] }
 
 .row
   .span9
-    - if title_in_description
-      .name= values[:title]
-    - else
-      .page-header
-        %h1.name
-          = values[:title]
+    .page-header
+      %h1.name
+        = values[:title]
     %section
       #text
         - if values[:description]
-          #description~ sanitize_code_blocks values[:description]
+          #description= sanitize_code_blocks values[:description]
         - sections = values[:sections].keys if values.has_key?(:sections)
 
         - if entry.requires or sections or entry.includes
@@ -53,15 +49,8 @@
   .span3
     %ul.nav.nav-list
 
-      - if file_page
-        %li.nav-header Path
-        %li= values[:file].relative_name
-
-      - else
-        %li.nav-header Defined IN
-        - values[:entry].in_files.each_with_index do |file, index|
-          %li
-            = link_to file.full_name, Pathname.new(file.path).relative_path_from(Pathname.new(values[:entry].path).dirname)
+      %li.nav-header Path
+      %li= values[:file].relative_name
 
       - if values[:entry].parent
         %li.nav-header Parent
@@ -74,28 +63,6 @@
         %li
           %span.datetime= values[:entry].last_modified
 
-      - unless methods.empty?
-        %li.divider
-        - %w[attr attr_accessor attr_reader attr_writer class instance].each do |type|
-          - (RDoc::VISIBILITIES rescue RDoc::Context::VISIBILITIES).each do |vis|
-            - list = methods.reject { |x| x.respond_to?(:is_alias_for) && x.is_alias_for }.select { |x| x.visibility == vis && x.type == type.to_s }.sort
-            - unless list.empty?
-              - type_result = ""
-              - if type =~ /^attr_/
-                - type_result += type.sub(/^attr_/, '').capitalize
-              - else
-                - type_result += type.capitalize
-              - type_result = "#{vis.to_s.capitalize} #{type_result}"
-              %li.nav-header= type_result
-              - list.each do |method|
-                - if method.respond_to?(:aref)
-                  - if method.name.to_s.empty? && method.call_seq
-                    %li= link_to method.call_seq.gsub(/<br\s*\/?>/, "").split(/[\r\n]+/).map{ |s| s.split(/([({]+|\[\{|\s+(#?=>|&rarr;)\s+)/).first.sub(/^[A-Za-z0-9_:]+\./, "").sub(/\s+=\s+.*/, "=").strip }.uniq.join("<br />\n"), '#' + method.aref
-                  - else
-                    %li= link_to method.name, '#' + method.aref
-                - elsif method.respond_to?(:html_name)
-                  %li= link_to method.name, "#method-#{method.html_name}"
-                - else
-                  %li= method.name
+
 
 

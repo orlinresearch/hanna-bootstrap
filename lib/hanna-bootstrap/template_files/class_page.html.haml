@@ -2,30 +2,17 @@
 - file_page = !values[:classmod]
 - methods = entry.method_list + entry.attributes
 - description = entry.description
-- title_in_description = description && (description =~ /<h(1|2[^>]*?)>/i)
-- description.gsub!(%r{<h(1|2)[^>]*?>(?<tag>.*?)</h(1|2)>}){|m| %Q[<div class="page-header">#{m}</div>] }
-- title = capture_haml do
-  - if file_page
-    = values[:title]
-  - else
-    %span.type= values[:classmod]
-    = values[:entry].full_name
 
 .row
   .span9
-    - if title_in_description
-      .name
+    .page-header
+      %h1.name
         %span.type= values[:classmod]
         = values[:entry].full_name
-    - else
-      .page-header
-        %h1.name
-          %span.type= values[:classmod]
-          = values[:entry].full_name
     %section#content
       #text
         - if values[:description]
-          #description~ sanitize_code_blocks values[:description]
+          #description= sanitize_code_blocks values[:description]
 
         #context
           - unless entry.requires.empty?
@@ -38,9 +25,9 @@
           - if values[:sections].keys.size > 1
             %section#contents
               %h2 Contents
-              %ol
+              %ol.unstyled
                 - values[:sections].keys.each do |section|
-                  %li= link_to section.title, "##{section.aref}"
+                  %li= link_to section.title, "##{section.aref}" unless section.title.to_s != ''
 
           - unless values[:entry].includes.empty?
             %section#includes
@@ -52,25 +39,25 @@
                   - else
                     %li= link_to inc.name, entry.aref_to(mod.path)
 
-        - unless values[:entry].classes_and_modules.empty?
-          #class-list
-            %h2 Classes and Modules
-            %ul
-              - values[:entry].modules.each do |mod|
-                %li
-                  %span.type MODULE
-                  = link_to mod.full_name, values[:entry].aref_to(mod.path)
-              - values[:entry].classes.each do |mod|
-                %li
-                  %span.type CLASS
-                  = link_to mod.full_name, values[:entry].aref_to(mod.path)
+          - unless values[:entry].classes_and_modules.empty?
+            #class-list
+              %h2 Classes and Modules
+              %ul
+                - values[:entry].modules.each do |mod|
+                  %li
+                    %span.type MODULE
+                    = link_to mod.full_name, values[:entry].aref_to(mod.path)
+                - values[:entry].classes.each do |mod|
+                  %li
+                    %span.type CLASS
+                    = link_to mod.full_name, values[:entry].aref_to(mod.path)
 
-        - values[:sections].each do |section, h|
-          - constants, attributes, alias_types, method_types = h.values_at(:constants, :attributes, :alias_types, :method_types)
-          #section
-            - if section.title.to_s != ''
-              %h2
-                %a{ :name =>section.aref }= section.title
+          - values[:sections].each do |section, h|
+            - constants, attributes, alias_types, method_types = h.values_at(:constants, :attributes, :alias_types, :method_types)
+            #section
+              - if section.title.to_s != ''
+                %h2
+                  %a{ :name =>section.aref }= section.title
                 - if section.comment
                   .section-comment= section.description
 
@@ -124,7 +111,7 @@
                       - list.each do |method|
                         %a{ :name => method.aref }
                         %section.method{ :id => "method-#{method.aref}", :class => "#{type.gsub(/\s+/, '-')}".downcase }
-                          %h3.synopsis
+                          %h5.synopsis
                             - if method.call_seq
                               %span.name
                                 - method.call_seq.split(/\r?\n/).each do |seq|
@@ -152,15 +139,10 @@
   .span3
     %ul.nav.nav-list
 
-      - if file_page
-        %li.nav-header Path
-        %li= values[:file].relative_name
-
-      - else
-        %li.nav-header Defined IN
-        - values[:entry].in_files.each_with_index do |file, index|
-          %li
-            = link_to file.full_name, Pathname.new(file.path).relative_path_from(Pathname.new(values[:entry].path).dirname)
+      %li.nav-header Defined IN
+      - values[:entry].in_files.each_with_index do |file, index|
+        %li
+          = link_to file.full_name, Pathname.new(file.path).relative_path_from(Pathname.new(values[:entry].path).dirname)
 
       - if values[:entry].parent
         %li.nav-header Parent
